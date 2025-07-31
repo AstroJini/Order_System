@@ -4,6 +4,7 @@ import com.beyond.ordersystem.member.domain.Member;
 import com.beyond.ordersystem.member.dto.MemberCreateDto;
 import com.beyond.ordersystem.member.dto.MemberResDto;
 import com.beyond.ordersystem.member.repository.MemberRepository;
+import com.beyond.ordersystem.ordering.service.StockInventoryService;
 import com.beyond.ordersystem.product.domain.Product;
 import com.beyond.ordersystem.product.dto.ProductCreateDto;
 import com.beyond.ordersystem.product.dto.ProductResDto;
@@ -41,6 +42,8 @@ public class ProductService {
     public final MemberRepository memberRepository;
     private final ProductRepository productRepository;
     private final S3Client s3Client;
+    private final StockInventoryService stockInventoryService;
+
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
     public Long save(ProductCreateDto productCreateDto) {
@@ -70,7 +73,8 @@ public class ProductService {
         } else {
             product.updateImageUrl(null);
         }
-
+//        상품 등록시 redis에 재고 세팅
+        stockInventoryService.makeStockQuantity(product.getId(), product.getStockQuantity());
         return product.getId();
     }
 
