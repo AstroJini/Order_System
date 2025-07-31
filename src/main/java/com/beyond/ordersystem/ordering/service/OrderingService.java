@@ -89,6 +89,7 @@ public class OrderingService {
 //            orderDetailRepository.save(orderDetail);
             ordering.getOrderDetailsList().add(orderDetail);
 //          큐에 메시지를 담는다.
+//            rdb에 사후 update를 위한 메시지 발행(비동기 처리)
             stockRabbitMqService.publish(dto.getProductId(), dto.getProductCount());
         }
         orderingRepository.save(ordering);
