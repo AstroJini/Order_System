@@ -1,12 +1,12 @@
 package com.beyond.ordersystem.ordering.service;
 
+import com.beyond.ordersystem.common.service.SseAlarmService;
 import com.beyond.ordersystem.common.service.StockRabbitMqService;
 import com.beyond.ordersystem.member.domain.Member;
 import com.beyond.ordersystem.member.repository.MemberRepository;
 import com.beyond.ordersystem.ordering.domain.OrderDetail;
 import com.beyond.ordersystem.ordering.domain.Ordering;
 import com.beyond.ordersystem.ordering.dto.OrderCreateDto;
-import com.beyond.ordersystem.ordering.dto.OrderDetailResDto;
 import com.beyond.ordersystem.ordering.dto.OrderListResDto;
 import com.beyond.ordersystem.ordering.repository.OrderDetailRepository;
 import com.beyond.ordersystem.ordering.repository.OrderingRepository;
@@ -33,6 +33,7 @@ public class OrderingService {
     private final OrderDetailRepository orderDetailRepository;
     private final StockInventoryService stockInventoryService;
     private final StockRabbitMqService stockRabbitMqService;
+    private final SseAlarmService sseAlarmService;
 
     public Long create(List<OrderCreateDto> orderCreateDtoList){
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -93,6 +94,10 @@ public class OrderingService {
             stockRabbitMqService.publish(dto.getProductId(), dto.getProductCount());
         }
         orderingRepository.save(ordering);
+
+//        주문 성공시 admin 유저에게 알림메시지 전송
+        sseAlarmService.publishMessage("admin@naver.com", email, ordering.getId());
+
         return ordering.getId();
     }
 
@@ -103,5 +108,19 @@ public class OrderingService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         Member member = memberRepository.findByEmail(email).orElseThrow(()->new EntityNotFoundException("없는 사용자"));
         return orderingRepository.findAllByMember(member).stream().map(o->OrderListResDto.fromEntity(o)).collect(Collectors.toList());
+    }
+
+    public Ordering cancel(Long id){
+//        Ordering DB에 상태값 변경 Canceled
+        Ordering ordering = orderingRepository.findById(id).orElseThrow(()->new EntityNotFoundException("주문내역이 없습니다."));
+        ordering.cancelStatus();
+
+        for (OrderDetail orderDetail : ordering.getOrderDetailsList()){
+//        rdb재고 업데이트
+            orderDetail.getProduct().cancelOrder(orderDetail.getQuantity());
+//        redis의 재고값 증가
+            stockInventoryService.increaseStockQuantity(orderDetail.getProduct().getId(), orderDetail.getQuantity());
+        }
+        return ordering;
     }
 }

@@ -29,7 +29,8 @@ public class StockInventoryService {
         }
     }
 //    주문 취소시 재고수량 증
-    public void increaseStockQuantity(){
-
+    public int increaseStockQuantity(Long productId, int quantity){
+        Long finalRemains =redisTemplate.opsForValue().increment(String.valueOf(productId), quantity);
+        return finalRemains.intValue();
     }
 }
